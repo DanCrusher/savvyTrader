@@ -1,0 +1,1950 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stockpile — Portfolio Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<!-- Firebase -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAoTJa-D_GeNH6avBwQ9H4olP5pxIiqkNI",
+  authDomain: "dancrusher-234b0.firebaseapp.com",
+  projectId: "dancrusher-234b0",
+  storageBucket: "dancrusher-234b0.firebasestorage.app",
+  messagingSenderId: "277711978626",
+  appId: "1:277711978626:web:6abad41491a6f7a3a1b49b"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const DOC_REF = doc(db, 'portfolios', 'dan');
+
+// Expose db functions to global scope for the main script
+window._db = {
+  async load() {
+    const snap = await getDoc(DOC_REF);
+    return snap.exists() ? snap.data() : null;
+  },
+  async save(data) {
+    await setDoc(DOC_REF, data, { merge: true });
+  }
+};
+
+// Signal that Firebase is ready
+window._firebaseReady = true;
+document.dispatchEvent(new Event('firebase-ready'));
+</script>
+<style>
+  :root {
+    --bg: #0a0c0f;
+    --surface: #111418;
+    --surface2: #191d24;
+    --border: #242830;
+    --accent: #00e5a0;
+    --accent2: #0066ff;
+    --red: #ff4560;
+    --text: #e8eaf0;
+    --muted: #5a6070;
+    --gain: #00e5a0;
+    --loss: #ff4560;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Background grid effect */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 40px 40px;
+    opacity: 0.3;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app { position: relative; z-index: 1; max-width: 1280px; margin: 0 auto; padding: 0 24px; }
+
+  /* HEADER */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 24px 0 32px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+
+  .logo span { color: var(--accent); }
+
+  .header-time {
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  /* NAV TABS */
+  .nav-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 24px 0 0;
+  }
+
+  .tab {
+    padding: 8px 20px;
+    border-radius: 6px;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--muted);
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .tab:hover { color: var(--text); border-color: var(--border); }
+
+  .tab.active {
+    background: var(--surface2);
+    border-color: var(--border);
+    color: var(--accent);
+  }
+
+  /* PANELS */
+  .panel { display: none; padding: 28px 0; }
+  .panel.active { display: block; }
+
+  /* STATS GRID */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    position: relative;
+    overflow: hidden;
+    animation: fadeUp 0.4s ease both;
+  }
+
+  .stat-card::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--accent);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .stat-card:hover::after { opacity: 1; }
+
+  .stat-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  .stat-value {
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -1px;
+    line-height: 1;
+  }
+
+  .stat-sub {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    margin-top: 6px;
+  }
+
+  .gain { color: var(--gain); }
+  .loss { color: var(--loss); }
+
+  /* MAIN GRID */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 20px;
+  }
+
+  @media (max-width: 900px) { .main-grid { grid-template-columns: 1fr; } }
+
+  /* CHART CARD */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+  }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+
+  .card-title {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+  }
+
+  /* HOLDINGS TABLE */
+  .holdings-table { width: 100%; border-collapse: collapse; }
+
+  .holdings-table th {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    text-align: left;
+    padding: 0 0 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .holdings-table th:not(:first-child) { text-align: right; }
+
+  .holdings-table td {
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+  }
+
+  .holdings-table td:not(:first-child) { text-align: right; font-family: 'DM Mono', monospace; }
+  .holdings-table tr:last-child td { border-bottom: none; }
+
+  .holdings-table tr { transition: background 0.15s; }
+  .holdings-table tr:hover td { background: var(--surface2); }
+  .holdings-table tr:hover td:first-child { border-radius: 6px 0 0 6px; padding-left: 8px; }
+  .holdings-table tr:hover td:last-child { border-radius: 0 6px 6px 0; padding-right: 8px; }
+
+  .ticker-badge {
+    display: inline-block;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--accent);
+    margin-right: 8px;
+  }
+
+  .company-name { font-size: 13px; color: var(--muted); display: block; margin-top: 2px; }
+
+  /* SIDEBAR */
+  .sidebar { display: flex; flex-direction: column; gap: 16px; }
+
+  /* ORDER FORM */
+  .form-group { margin-bottom: 14px; }
+
+  label {
+    display: block;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 6px;
+  }
+
+  input, select {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  input:focus, select:focus { border-color: var(--accent); }
+  input::placeholder { color: var(--muted); }
+
+  select option { background: var(--surface2); }
+
+  .order-type-toggle {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  .order-btn {
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--muted);
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.5px;
+  }
+
+  .order-btn.buy.active { background: rgba(0,229,160,0.12); border-color: var(--gain); color: var(--gain); }
+  .order-btn.sell.active { background: rgba(255,69,96,0.12); border-color: var(--loss); color: var(--loss); }
+
+  .submit-btn {
+    width: 100%;
+    padding: 13px;
+    border-radius: 8px;
+    border: none;
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.5px;
+  }
+
+  .submit-btn.buy { background: var(--gain); color: #000; }
+  .submit-btn.sell { background: var(--loss); color: #fff; }
+  .submit-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(0,229,160,0.3); }
+
+  /* ALLOCATION */
+  .alloc-list { display: flex; flex-direction: column; gap: 10px; }
+
+  .alloc-item { }
+
+  .alloc-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+    font-size: 13px;
+  }
+
+  .alloc-pct { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--muted); }
+
+  .alloc-bar {
+    height: 4px;
+    background: var(--border);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+
+  .alloc-fill {
+    height: 100%;
+    border-radius: 99px;
+    transition: width 0.6s ease;
+  }
+
+  /* ORDERS HISTORY */
+  .orders-list { display: flex; flex-direction: column; gap: 10px; }
+
+  .order-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    animation: fadeUp 0.3s ease both;
+  }
+
+  .order-side {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.05em;
+    margin-right: 10px;
+  }
+
+  .order-side.buy { background: rgba(0,229,160,0.15); color: var(--gain); }
+  .order-side.sell { background: rgba(255,69,96,0.15); color: var(--loss); }
+
+  .order-info { flex: 1; }
+  .order-ticker { font-weight: 700; font-size: 14px; }
+  .order-detail { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .order-total { font-family: 'DM Mono', monospace; font-size: 14px; font-weight: 500; text-align: right; }
+  .order-date { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; margin-top: 2px; }
+
+  .delete-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 4px 8px;
+    font-size: 16px;
+    line-height: 1;
+    transition: color 0.2s;
+    margin-left: 8px;
+  }
+
+  .delete-btn:hover { color: var(--loss); }
+
+  /* CHART TOGGLE */
+  .chart-tabs {
+    display: flex;
+    gap: 4px;
+  }
+
+  .chart-tab {
+    padding: 5px 12px;
+    border-radius: 5px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .chart-tab.active { background: var(--surface2); border-color: var(--border); color: var(--text); }
+
+  /* EMPTY STATE */
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--muted);
+  }
+
+  .empty-state .icon { font-size: 36px; margin-bottom: 10px; }
+  .empty-state p { font-size: 14px; }
+
+  /* ANIMATIONS */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* TOAST */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 20px;
+    font-size: 14px;
+    z-index: 1000;
+    transform: translateY(80px);
+    opacity: 0;
+    transition: all 0.3s ease;
+  }
+
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.gain-toast { border-color: var(--gain); }
+  .toast.loss-toast { border-color: var(--loss); }
+
+  /* SPARKLINE AREA */
+  .sparkline-area { position: relative; height: 200px; }
+
+  /* COMPARISON TAG */
+  #comparisonTags span { transition: opacity 0.2s; }
+  #comparisonTags span:hover { opacity: 0.8; }
+
+  #compRangeSelect, #comparisonSelect {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    cursor: pointer;
+  }
+  #compRangeSelect:focus, #comparisonSelect:focus { border-color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="logo">Stock<span>pile</span></div>
+    <div style="display:flex;align-items:center;gap:20px">
+      <span id="priceStatus" style="font-family:'DM Mono',monospace;font-size:12px;color:var(--muted)">○ Estimated prices</span>
+      <button onclick="refreshPrices()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:6px 14px;border-radius:6px;cursor:pointer;transition:border-color 0.2s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">↻ Refresh Prices</button>
+      <button onclick="resetToDemo()" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);font-family:'DM Mono',monospace;font-size:12px;padding:6px 14px;border-radius:6px;cursor:pointer;transition:all 0.2s" onmouseover="this.style.borderColor='var(--loss)';this.style.color='var(--loss)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">⟳ Reset Demo</button>
+      <div class="header-time" id="clockEl">—</div>
+    </div>
+  </header>
+
+  <nav class="nav-tabs">
+    <button class="tab active" onclick="switchTab('overview', this)">Overview</button>
+    <button class="tab" onclick="switchTab('orders', this)">Orders</button>
+    <button class="tab" onclick="switchTab('cash', this)">Cash History</button>
+    <button class="tab" onclick="switchTab('charts', this)">Charts</button>
+  </nav>
+
+  <!-- OVERVIEW PANEL -->
+  <div class="panel active" id="panel-overview">
+    <div class="stats-grid" id="statsGrid"></div>
+    <div class="main-grid">
+      <div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Holdings</span>
+            <span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--muted)" id="holdingsCount"></span>
+          </div>
+          <table class="holdings-table">
+            <thead>
+              <tr>
+                <th>Ticker / Name</th>
+                <th>Shares</th>
+                <th>Avg Cost</th>
+                <th>Current</th>
+                <th>Market Value</th>
+                <th>P&L</th>
+              </tr>
+            </thead>
+            <tbody id="holdingsBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="sidebar">
+        <!-- ORDER FORM -->
+        <div class="card">
+          <div class="card-header"><span class="card-title">New Order</span></div>
+          <div class="order-type-toggle">
+            <button class="order-btn buy active" id="buyBtn" onclick="setOrderType('buy')">BUY</button>
+            <button class="order-btn sell" id="sellBtn" onclick="setOrderType('sell')">SELL</button>
+          </div>
+          <div class="form-group">
+            <label>Ticker Symbol</label>
+            <input type="text" id="tickerInput" placeholder="AAPL" maxlength="5" style="text-transform:uppercase">
+          </div>
+          <div class="form-group">
+            <label>Company Name <span id="nameStatus" style="font-size:11px;margin-left:6px;font-family:'DM Mono',monospace"></span></label>
+            <input type="text" id="nameInput" placeholder="Auto-filled from ticker...">
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div class="form-group">
+              <label>Shares</label>
+              <input type="number" id="sharesInput" placeholder="10" min="0.001" step="any">
+            </div>
+            <div class="form-group">
+              <label>Price / Share</label>
+              <input type="number" id="priceInput" placeholder="150.00" min="0.01" step="any">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Date</label>
+            <input type="date" id="dateInput">
+          </div>
+          <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);margin-bottom:4px;min-height:18px" id="orderTotal"></div>
+          <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:12px" id="cashAvailableLabel"></div>
+          <button class="submit-btn buy" id="submitBtn" onclick="submitOrder()">PLACE BUY ORDER</button>
+        </div>
+
+        <!-- ALLOCATION -->
+        <div class="card">
+          <div class="card-header"><span class="card-title">Allocation</span></div>
+          <div class="alloc-list" id="allocList">
+            <div class="empty-state"><p>No holdings yet</p></div>
+          </div>
+        </div>
+
+        <!-- CASH -->
+        <div class="card">
+          <div class="card-header"><span class="card-title">Cash</span><span id="cashBalanceLabel" style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:var(--accent)"></span></div>
+          <div class="order-type-toggle" style="margin-bottom:14px">
+            <select id="cashTypeSelect" style="width:100%;padding:9px 12px;border-radius:8px;font-size:13px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:'DM Mono',monospace">
+              <option value="deposit">💰 Deposit</option>
+              <option value="withdraw">💸 Withdraw</option>
+            </select>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div class="form-group">
+              <label>Amount ($)</label>
+              <input type="number" id="cashAmountInput" placeholder="1000.00" min="0.01" step="any">
+            </div>
+            <div class="form-group">
+              <label>Date</label>
+              <input type="date" id="cashDateInput">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Note (optional)</label>
+            <input type="text" id="cashNoteInput" placeholder="Monthly contribution...">
+          </div>
+          <button class="submit-btn buy" style="background:var(--accent2)" onclick="submitCash()">ADD CASH ENTRY</button>
+          <div id="cashHistoryList" style="margin-top:16px;max-height:200px;overflow-y:auto"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ORDERS PANEL -->
+  <div class="panel" id="panel-orders">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Order History</span>
+        <span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--muted)" id="ordersCountEl"></span>
+      </div>
+      <div class="orders-list" id="ordersList"></div>
+    </div>
+  </div>
+
+  <!-- CASH HISTORY PANEL -->
+  <div class="panel" id="panel-cash">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Cash Transactions</span>
+          <span id="cashTxCountEl" style="font-family:'DM Mono',monospace;font-size:12px;color:var(--muted)"></span>
+        </div>
+        <div id="cashTxList"></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Cash Summary</span></div>
+        <div id="cashSummaryEl"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHARTS PANEL -->
+  <div class="panel" id="panel-charts">
+    <div style="display:flex;flex-direction:column;gap:20px">
+
+      <!-- COMPARISON CHART -->
+      <div class="card">
+        <div class="card-header" style="flex-wrap:wrap;gap:12px">
+          <span class="card-title">Performance Comparison <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);font-weight:400">% return from first order date</span></span>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <div id="comparisonTags" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+            <div style="display:flex;gap:6px">
+              <select id="comparisonSelect" style="width:auto;padding:6px 10px;font-size:13px;border-radius:6px">
+                <option value="">+ Add benchmark</option>
+                <option value="SPY" selected>SPY — S&amp;P 500</option>
+                <option value="QQQ">QQQ — Nasdaq 100</option>
+                <option value="DIA">DIA — Dow Jones</option>
+                <option value="IWM">IWM — Russell 2000</option>
+                <option value="GLD">GLD — Gold</option>
+                <option value="BTC-USD">BTC-USD — Bitcoin</option>
+                <option value="custom">✏️ Custom ticker...</option>
+              </select>
+              <button onclick="addComparison()" style="padding:6px 14px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-family:'DM Mono',monospace;font-size:12px;cursor:pointer;white-space:nowrap" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">Add</button>
+            </div>
+            <select id="compRangeSelect" onchange="renderComparisonChart()" style="width:auto;padding:6px 10px;font-size:12px;border-radius:6px;font-family:'DM Mono',monospace">
+              <option value="all">All time</option>
+              <option value="1y">1 Year</option>
+              <option value="6m">6 Months</option>
+              <option value="3m">3 Months</option>
+              <option value="1m">1 Month</option>
+            </select>
+          </div>
+        </div>
+        <div style="position:relative;min-height:280px">
+          <div id="compLoadingEl" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-family:'DM Mono',monospace;font-size:13px;display:none">⟳ Fetching historical data...</div>
+          <canvas id="comparisonChart" height="280"></canvas>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Portfolio Value Over Time</span>
+          </div>
+          <canvas id="valueChart" height="220"></canvas>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Holdings Distribution</span>
+          </div>
+          <canvas id="pieChart" height="220"></canvas>
+        </div>
+        <div class="card" style="grid-column:1/-1">
+          <div class="card-header">
+            <span class="card-title">P&L by Position</span>
+          </div>
+          <canvas id="plChart" height="160"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── STATE ────────────────────────────────────────────────────
+// Data lives in Firestore — start empty, loadFromFirestore() fills it on init
+let orders = [];
+let cashEntries = [];
+// cashEntries: [{ id, type:'deposit'|'withdraw', amount, date, note }]
+let orderType = 'buy';
+let valueChart, pieChart, plChart, comparisonChart;
+let comparisonTickers = ['SPY'];
+const historicalCache = {}; // { 'SPY_all': [{t, c}, ...] }
+const splitCache = {};       // { 'NVDA': [{date, ratio}, ...] }  ratio = new/old e.g. 10 for 10:1
+
+const COLORS = ['#00e5a0','#0066ff','#f5a623','#ff6b6b','#a78bfa','#38bdf8','#fb923c','#34d399'];
+
+// ── PRICE CACHE ───────────────────────────────────────────────
+const FINNHUB_KEY = 'd6c0evhr01qp4li12qm0d6c0evhr01qp4li12qmg';
+const priceCache = {};
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+let pricesLoading = false;
+
+async function fetchFinnhubPrices(tickers) {
+  if (!tickers.length) return;
+  await Promise.all(tickers.map(async ticker => {
+    if (priceCache[ticker] && (Date.now() - priceCache[ticker].timestamp) < CACHE_TTL_MS) return;
+    try {
+      const res = await fetch(`https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${FINNHUB_KEY}`);
+      if (res.ok) {
+        const data = await res.json();
+        const price = data.c || data.pc;
+        if (price && price > 0) {
+          priceCache[ticker] = { price, change: data.d, changePct: data.dp, timestamp: Date.now() };
+        }
+      }
+    } catch (e) {
+      console.warn(`Finnhub fetch failed for ${ticker}:`, e);
+    }
+  }));
+}
+
+
+
+function getCurrentPrice(ticker, avgCost) {
+  if (priceCache[ticker]) return priceCache[ticker].price;
+  // Stable fallback based on ticker hash so it doesn't change on re-render
+  let hash = 0;
+  for (let i = 0; i < ticker.length; i++) hash = (hash * 31 + ticker.charCodeAt(i)) & 0xffffffff;
+  const factor = 0.75 + (Math.abs(hash) % 100) / 200; // 0.75 - 1.25
+  return avgCost * factor;
+}
+
+async function refreshPrices() {
+  if (pricesLoading) return;
+  pricesLoading = true;
+  updatePriceStatusBadge('loading');
+  // Fetch splits first so computeHoldings uses up-to-date split factors
+  await fetchAllSplits();
+  const holdings = computeHoldings();
+  const tickers = holdings.map(h => h.ticker);
+  await fetchFinnhubPrices(tickers);
+  pricesLoading = false;
+  const anyLive = tickers.some(t => priceCache[t]);
+  updatePriceStatusBadge(anyLive ? 'live' : 'offline');
+  render();
+  if (document.getElementById('panel-charts').classList.contains('active')) renderCharts();
+}
+
+function updatePriceStatusBadge(state) {
+  const el = document.getElementById('priceStatus');
+  if (!el) return;
+  if (state === 'loading') {
+    el.textContent = '⟳ Fetching prices...';
+    el.style.color = 'var(--muted)';
+  } else if (state === 'live') {
+    el.textContent = '● Live prices';
+    el.style.color = 'var(--gain)';
+  } else {
+    el.textContent = '○ Estimated prices';
+    el.style.color = 'var(--loss)';
+  }
+}
+
+// ── CLOCK ────────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clockEl').textContent =
+    now.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'}) + ' · ' +
+    now.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'});
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ── ORDER TYPE ───────────────────────────────────────────────
+function setOrderType(type) {
+  orderType = type;
+  document.getElementById('buyBtn').classList.toggle('active', type === 'buy');
+  document.getElementById('sellBtn').classList.toggle('active', type === 'sell');
+  const btn = document.getElementById('submitBtn');
+  btn.className = `submit-btn ${type}`;
+  btn.textContent = `PLACE ${type.toUpperCase()} ORDER`;
+}
+
+// Live total preview
+['sharesInput','priceInput'].forEach(id => {
+  document.getElementById(id).addEventListener('input', () => {
+    const s = parseFloat(document.getElementById('sharesInput').value) || 0;
+    const p = parseFloat(document.getElementById('priceInput').value) || 0;
+    const total = (s * p).toFixed(2);
+    document.getElementById('orderTotal').textContent =
+      s && p ? `Total: $${Number(total).toLocaleString('en-US', {minimumFractionDigits:2})}` : '';
+    const cashLive = getCashBalance();
+    const lbl = document.getElementById('cashAvailableLabel');
+    if (lbl) lbl.textContent = `Cash available: $${cashLive.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+  });
+});
+
+let tickerLookupTimeout = null;
+document.getElementById('tickerInput').addEventListener('input', function() {
+  this.value = this.value.toUpperCase();
+  const ticker = this.value.trim();
+  clearTimeout(tickerLookupTimeout);
+  const statusEl = document.getElementById('nameStatus');
+  if (ticker.length < 1) {
+    document.getElementById('nameInput').value = '';
+    statusEl.textContent = '';
+    return;
+  }
+  statusEl.textContent = '⟳ Looking up...';
+  statusEl.style.color = 'var(--muted)';
+  tickerLookupTimeout = setTimeout(async () => {
+    try {
+      const res = await fetch(`https://finnhub.io/api/v1/search?q=${encodeURIComponent(ticker)}&token=${FINNHUB_KEY}`);
+      if (res.ok) {
+        const data = await res.json();
+        const exact = data.result?.find(r => r.symbol === ticker && r.type === 'Common Stock')
+          || data.result?.find(r => r.symbol === ticker)
+          || data.result?.[0];
+        if (exact?.description) {
+          document.getElementById('nameInput').value = exact.description;
+          statusEl.textContent = '✓ Found';
+          statusEl.style.color = 'var(--gain)';
+          setTimeout(() => { statusEl.textContent = ''; }, 2000);
+        } else {
+          statusEl.textContent = '? Not found';
+          statusEl.style.color = 'var(--loss)';
+        }
+      }
+    } catch (e) { statusEl.textContent = ''; }
+  }, 500);
+});
+
+// Set default date
+document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
+document.getElementById('cashDateInput').value = new Date().toISOString().split('T')[0];
+
+// ── SUBMIT ORDER ─────────────────────────────────────────────
+function submitOrder() {
+  const ticker = document.getElementById('tickerInput').value.trim().toUpperCase();
+  const name = document.getElementById('nameInput').value.trim() || ticker;
+  const shares = parseFloat(document.getElementById('sharesInput').value);
+  const price = parseFloat(document.getElementById('priceInput').value);
+  const date = document.getElementById('dateInput').value;
+
+  if (!ticker || !shares || !price || !date) {
+    showToast('⚠️ Please fill in all fields', '');
+    return;
+  }
+  if (shares <= 0 || price <= 0) { showToast('⚠️ Shares and price must be positive', ''); return; }
+
+  const total = shares * price;
+
+  if (orderType === 'buy') {
+    // Check sufficient cash balance
+    const cash = getCashBalance();
+    if (cash < total) {
+      showToast(`⚠️ Insufficient cash. Available: $${cash.toFixed(2)}, Need: $${total.toFixed(2)}`, 'loss-toast');
+      return;
+    }
+    // Deduct cash automatically
+    cashEntries.push({ id: Date.now() - 1, type: 'withdraw', amount: total, date, note: `Buy ${shares} ${ticker} @ $${price}` });
+    saveCash();
+  } else {
+    // Sell: check enough shares
+    const holdings = computeHoldings();
+    const holding = holdings.find(h => h.ticker === ticker);
+    if (!holding || holding.shares < shares) {
+      showToast(`⚠️ Not enough ${ticker} shares to sell`, 'loss-toast');
+      return;
+    }
+    // Add proceeds to cash automatically
+    cashEntries.push({ id: Date.now() - 1, type: 'deposit', amount: total, date, note: `Sell ${shares} ${ticker} @ $${price}` });
+    saveCash();
+  }
+
+  orders.push({ id: Date.now(), type: orderType, ticker, name, shares, price, date });
+  saveOrders();
+  render();
+
+  // Reset form
+  document.getElementById('tickerInput').value = '';
+  document.getElementById('nameInput').value = '';
+  document.getElementById('nameStatus').textContent = '';
+  document.getElementById('sharesInput').value = '';
+  document.getElementById('priceInput').value = '';
+  document.getElementById('orderTotal').textContent = '';
+  document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
+
+  showToast(`✓ ${orderType.toUpperCase()} ${shares} ${ticker} @ $${price}`, orderType === 'buy' ? 'gain-toast' : 'loss-toast');
+}
+
+function saveOrders() {
+  // Persist to Firestore (fire-and-forget)
+  if (window._db) window._db.save({ orders });
+}
+function saveCash() {
+  if (window._db) window._db.save({ cashEntries });
+}
+function saveAll() {
+  if (window._db) window._db.save({ orders, cashEntries });
+}
+function getCashBalance() {
+  return cashEntries.reduce((acc, e) => acc + (e.type === 'deposit' ? e.amount : -e.amount), 0);
+}
+
+// ── SPLIT HANDLING ───────────────────────────────────────────
+// Fetches split history for a ticker from Yahoo Finance.
+// Returns array of { date: 'YYYY-MM-DD', ratio: number } sorted ascending.
+// ratio > 1 means forward split (e.g. 10 for 10:1), ratio < 1 means reverse split.
+async function fetchSplits(ticker) {
+  if (splitCache[ticker] !== undefined) return splitCache[ticker];
+  // Fetch from epoch 0 to now to get all splits ever
+  const period1 = 0;
+  const period2 = Math.floor(Date.now() / 1000);
+  const yahooUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?period1=${period1}&period2=${period2}&interval=1d&events=splits&includePrePost=false`;
+  const proxiedUrl = `https://corsproxy.io/?url=${encodeURIComponent(yahooUrl)}`;
+  try {
+    const res = await fetch(proxiedUrl);
+    if (!res.ok) throw new Error('proxy failed');
+    const data = await res.json();
+    const rawSplits = data?.chart?.result?.[0]?.events?.splits;
+    if (!rawSplits) { splitCache[ticker] = []; return []; }
+    const splits = Object.values(rawSplits).map(s => ({
+      date: new Date(s.date * 1000).toISOString().split('T')[0],
+      ratio: s.numerator / s.denominator  // e.g. 10/1 = 10 for 10:1 split
+    })).sort((a, b) => a.date.localeCompare(b.date));
+    splitCache[ticker] = splits;
+    return splits;
+  } catch (e) {
+    console.warn('fetchSplits failed for', ticker, e);
+    splitCache[ticker] = [];
+    return [];
+  }
+}
+
+// Given a ticker's split history and an order date, compute the cumulative
+// split factor that should be applied to shares bought ON or BEFORE that date.
+// e.g. NVDA had a 10:1 split on 2024-06-10. An order from 2024-10-10 (after split)
+// should NOT be multiplied. An order from 2023-01-01 (before split) gets ×10.
+function cumulativeSplitFactor(splits, orderDate) {
+  // Multiply by ratio of every split that happened AFTER the order date
+  return splits
+    .filter(s => s.date > orderDate)
+    .reduce((factor, s) => factor * s.ratio, 1);
+}
+
+// Fetch splits for all tickers in the portfolio
+async function fetchAllSplits() {
+  const tickers = [...new Set(orders.map(o => o.ticker))];
+  await Promise.all(tickers.map(t => fetchSplits(t)));
+}
+
+// ── COMPUTE HOLDINGS ─────────────────────────────────────────
+function computeHoldings() {
+  // Apply split-adjusted share counts and cost bases.
+  // splitCache is populated by fetchAllSplits() which is called on init and refresh.
+  // For each order, the shares bought are multiplied by every split that happened
+  // AFTER the order date, and the price is divided by the same factor.
+  const map = {};
+  orders.forEach(o => {
+    const splits = splitCache[o.ticker] || [];
+    const factor = cumulativeSplitFactor(splits, o.date);
+    const adjShares = o.shares * factor;
+    const adjPrice  = o.price  / factor;
+
+    if (!map[o.ticker]) map[o.ticker] = { ticker: o.ticker, name: o.name, shares: 0, totalCost: 0 };
+    const h = map[o.ticker];
+    if (o.type === 'buy') {
+      h.totalCost += adjShares * adjPrice;  // = o.shares * o.price (cost basis unchanged)
+      h.shares    += adjShares;
+    } else {
+      const avgCost = h.shares > 0 ? h.totalCost / h.shares : 0;
+      h.totalCost -= avgCost * adjShares;
+      h.shares    -= adjShares;
+    }
+  });
+  return Object.values(map).filter(h => h.shares > 0.0001).map(h => ({
+    ...h,
+    avgCost: h.shares > 0 ? h.totalCost / h.shares : 0,
+  }));
+}
+
+
+
+// ── CASH MANAGEMENT ─────────────────────────────────────────
+function submitCash() {
+  const type = document.getElementById('cashTypeSelect').value;
+  const amount = parseFloat(document.getElementById('cashAmountInput').value);
+  const date = document.getElementById('cashDateInput').value;
+  const note = document.getElementById('cashNoteInput').value.trim();
+
+  if (!amount || amount <= 0 || !date) {
+    showToast('⚠️ Please enter a valid amount and date', '');
+    return;
+  }
+  if (type === 'withdraw' && amount > getCashBalance()) {
+    showToast('⚠️ Insufficient cash balance', 'loss-toast');
+    return;
+  }
+
+  cashEntries.push({ id: Date.now(), type, amount, date, note });
+  saveCash();
+  render();
+
+  document.getElementById('cashAmountInput').value = '';
+  document.getElementById('cashNoteInput').value = '';
+  document.getElementById('cashDateInput').value = new Date().toISOString().split('T')[0];
+  showToast(`✓ ${type === 'deposit' ? 'Deposited' : 'Withdrew'} $${amount.toLocaleString('en-US', {minimumFractionDigits:2})}`, type === 'deposit' ? 'gain-toast' : 'loss-toast');
+}
+
+function deleteCash(id) {
+  cashEntries = cashEntries.filter(e => e.id !== id);
+  saveCash();
+  render();
+  showToast('Cash entry removed', '');
+}
+
+function renderCashHistory() {
+  // Sidebar mini-history (overview panel)
+  const el = document.getElementById('cashHistoryList');
+  if (!el) return;
+  if (cashEntries.length === 0) {
+    el.innerHTML = `<div style="color:var(--muted);font-family:'DM Mono',monospace;font-size:12px;text-align:center;padding:12px 0">No cash transactions yet</div>`;
+    return;
+  }
+  el.innerHTML = [...cashEntries].reverse().slice(0, 5).map(e => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)">
+      <div>
+        <span style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:4px;margin-right:8px;${e.type==='deposit'?'background:rgba(0,229,160,0.12);color:var(--gain)':'background:rgba(255,69,96,0.12);color:var(--loss)'}">${e.type.toUpperCase()}</span>
+        <span style="font-size:13px;font-weight:600">$${e.amount.toLocaleString('en-US',{minimumFractionDigits:2})}</span>
+        ${e.note ? `<span style="font-size:12px;color:var(--muted);margin-left:8px">${e.note}</span>` : ''}
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted)">${e.date}</span>
+        <button class="delete-btn" onclick="deleteCash(${e.id})">×</button>
+      </div>
+    </div>
+  `).join('') + (cashEntries.length > 5 ? `<div style="text-align:center;padding:8px 0;font-family:'DM Mono',monospace;font-size:11px;color:var(--muted)">+${cashEntries.length - 5} more — see Cash History tab</div>` : '');
+}
+
+function renderCashTab() {
+  const listEl = document.getElementById('cashTxList');
+  const countEl = document.getElementById('cashTxCountEl');
+  const summaryEl = document.getElementById('cashSummaryEl');
+  if (!listEl) return;
+
+  const sorted = [...cashEntries].sort((a,b) => b.date.localeCompare(a.date));
+  if (countEl) countEl.textContent = `${sorted.length} transaction${sorted.length !== 1 ? 's' : ''}`;
+
+  if (sorted.length === 0) {
+    listEl.innerHTML = `<div class="empty-state"><div class="icon">💵</div><p>No cash transactions yet. Deposit cash to get started.</p></div>`;
+  } else {
+    // Running balance column — compute forward in time
+    const sortedAsc = [...cashEntries].sort((a,b) => a.date.localeCompare(b.date));
+    const balanceMap = {};
+    let running = 0;
+    sortedAsc.forEach(e => {
+      running += e.type === 'deposit' ? e.amount : -e.amount;
+      balanceMap[e.id] = running;
+    });
+
+    listEl.innerHTML = `
+      <table style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr>
+            <th style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;text-align:left;padding:0 0 12px;border-bottom:1px solid var(--border)">Date</th>
+            <th style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;text-align:left;padding:0 8px 12px;border-bottom:1px solid var(--border)">Type</th>
+            <th style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;text-align:left;padding:0 8px 12px;border-bottom:1px solid var(--border)">Note</th>
+            <th style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;text-align:right;padding:0 0 12px;border-bottom:1px solid var(--border)">Amount</th>
+            <th style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;text-align:right;padding:0 0 12px 8px;border-bottom:1px solid var(--border)">Balance</th>
+            <th style="border-bottom:1px solid var(--border);padding:0 0 12px 8px"></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${sorted.map(e => `
+            <tr style="transition:background 0.15s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+              <td style="padding:12px 0;font-family:'DM Mono',monospace;font-size:13px;border-bottom:1px solid var(--border)">${e.date}</td>
+              <td style="padding:12px 8px;border-bottom:1px solid var(--border)">
+                <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;${e.type==='deposit'?'background:rgba(0,229,160,0.12);color:var(--gain)':'background:rgba(255,69,96,0.12);color:var(--loss)'}">${e.type.toUpperCase()}</span>
+              </td>
+              <td style="padding:12px 8px;font-size:13px;color:var(--muted);border-bottom:1px solid var(--border);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.note || '—'}</td>
+              <td style="padding:12px 0;font-family:'DM Mono',monospace;font-size:14px;font-weight:600;text-align:right;border-bottom:1px solid var(--border);color:${e.type==='deposit'?'var(--gain)':'var(--loss)'}">
+                ${e.type==='deposit'?'+':'-'}$${e.amount.toLocaleString('en-US',{minimumFractionDigits:2})}
+              </td>
+              <td style="padding:12px 0 12px 8px;font-family:'DM Mono',monospace;font-size:13px;text-align:right;border-bottom:1px solid var(--border);color:${balanceMap[e.id]>=0?'var(--text)':'var(--loss)'}">
+                $${balanceMap[e.id].toLocaleString('en-US',{minimumFractionDigits:2})}
+              </td>
+              <td style="padding:12px 0 12px 8px;border-bottom:1px solid var(--border)">
+                <button class="delete-btn" onclick="deleteCash(${e.id})">×</button>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>`;
+  }
+
+  // Summary card
+  if (summaryEl) {
+    const totalDeposits  = cashEntries.filter(e=>e.type==='deposit').reduce((a,e)=>a+e.amount,0);
+    const totalWithdrawn = cashEntries.filter(e=>e.type==='withdraw').reduce((a,e)=>a+e.amount,0);
+    const balance        = getCashBalance();
+    const manualDeposits = cashEntries.filter(e=>e.type==='deposit' && !e.note?.startsWith('Sell')).reduce((a,e)=>a+e.amount,0);
+    const sellProceeds   = cashEntries.filter(e=>e.type==='deposit' && e.note?.startsWith('Sell')).reduce((a,e)=>a+e.amount,0);
+    const stockBuys      = cashEntries.filter(e=>e.type==='withdraw' && e.note?.startsWith('Buy')).reduce((a,e)=>a+e.amount,0);
+    const manualWithdraw = cashEntries.filter(e=>e.type==='withdraw' && !e.note?.startsWith('Buy')).reduce((a,e)=>a+e.amount,0);
+
+    summaryEl.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:14px">
+        ${[
+          { label: 'Cash Balance',       value: balance,        color: balance >= 0 ? 'var(--gain)' : 'var(--loss)' },
+          { label: 'Total Deposited',    value: totalDeposits,  color: 'var(--gain)' },
+          { label: '  · Manual deposits', value: manualDeposits, color: 'var(--text)', small: true },
+          { label: '  · Sell proceeds',  value: sellProceeds,   color: 'var(--text)', small: true },
+          { label: 'Total Withdrawn',    value: totalWithdrawn, color: 'var(--loss)' },
+          { label: '  · Stock purchases',value: stockBuys,      color: 'var(--text)', small: true },
+          { label: '  · Manual withdrawals', value: manualWithdraw, color: 'var(--text)', small: true },
+        ].map(r => `
+          <div style="display:flex;justify-content:space-between;align-items:center;${r.small?'padding-left:12px':''}">
+            <span style="font-size:${r.small?'12':'13'}px;color:${r.small?'var(--muted)':'var(--text)'};font-weight:${r.small?400:600}">${r.label}</span>
+            <span style="font-family:'DM Mono',monospace;font-size:${r.small?'12':'14'}px;font-weight:${r.small?400:700};color:${r.color}">$${r.value.toLocaleString('en-US',{minimumFractionDigits:2})}</span>
+          </div>
+        `).join('')}
+      </div>`;
+  }
+}
+
+// ── RENDER ───────────────────────────────────────────────────
+function render() {
+  renderStats();
+  renderHoldings();
+  renderOrders();
+  renderAllocation();
+  renderCashHistory();
+  renderCashTab();
+  const cashLbl = document.getElementById('cashBalanceLabel');
+  if (cashLbl) cashLbl.textContent = '$' + getCashBalance().toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  if (document.getElementById('panel-charts').classList.contains('active')) {
+    renderCharts();
+  }
+}
+
+function renderStats() {
+  const holdings = computeHoldings();
+  let stockCost = 0, stockValue = 0;
+  holdings.forEach(h => {
+    const curr = getCurrentPrice(h.ticker, h.avgCost);
+    stockCost += h.avgCost * h.shares;
+    stockValue += curr * h.shares;
+  });
+  const cash = getCashBalance();
+  const totalPortfolioValue = stockValue + cash;
+  // P&L is purely stock price movement (cash excluded)
+  const pnl = stockValue - stockCost;
+  const pnlPct = stockCost > 0 ? (pnl / stockCost) * 100 : 0;
+
+  const stats = [
+    { label: 'Total Portfolio', value: `$${totalPortfolioValue.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}`, sub: `stocks + cash`, subClass: '' },
+    { label: 'Stock P&L', value: `${pnl >= 0 ? '+' : ''}$${Math.abs(pnl).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}`, sub: `${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}% on stocks`, subClass: pnl >= 0 ? 'gain' : 'loss', valueClass: pnl >= 0 ? 'gain' : 'loss' },
+    { label: 'Stocks Value', value: `$${stockValue.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}`, sub: `cost basis $${stockCost.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}`, subClass: '' },
+    { label: 'Cash Available', value: `$${cash.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}`, sub: `${cashEntries.length} transaction${cashEntries.length !== 1 ? 's' : ''}`, subClass: cash < 0 ? 'loss' : '' },
+  ];
+
+  const grid = document.getElementById('statsGrid');
+  grid.innerHTML = stats.map((s, i) => `
+    <div class="stat-card" style="animation-delay:${i*0.07}s">
+      <div class="stat-label">${s.label}</div>
+      <div class="stat-value ${s.valueClass || ''}">${s.value}</div>
+      <div class="stat-sub ${s.subClass}">${s.sub}</div>
+    </div>
+  `).join('');
+}
+
+function renderHoldings() {
+  const holdings = computeHoldings();
+  document.getElementById('holdingsCount').textContent = `${holdings.length} position${holdings.length !== 1 ? 's' : ''}`;
+  const body = document.getElementById('holdingsBody');
+
+  if (holdings.length === 0) {
+    body.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="icon">📊</div><p>No holdings yet. Place a buy order to get started.</p></div></td></tr>`;
+    return;
+  }
+
+  body.innerHTML = holdings.map((h, i) => {
+    const curr = getCurrentPrice(h.ticker, h.avgCost);
+    const mktVal = curr * h.shares;
+    const pnl = (curr - h.avgCost) * h.shares;
+    const pnlPct = ((curr - h.avgCost) / h.avgCost) * 100;
+    const cls = pnl >= 0 ? 'gain' : 'loss';
+    const color = COLORS[i % COLORS.length];
+    const cached = priceCache[h.ticker];
+    const dayChange = cached?.changePct != null
+      ? `<span style="font-size:11px;margin-left:6px;color:${cached.changePct >= 0 ? 'var(--gain)' : 'var(--loss)'}">${cached.changePct >= 0 ? '▲' : '▼'} ${Math.abs(cached.changePct).toFixed(2)}% today</span>`
+      : '';
+    return `
+      <tr>
+        <td>
+          <span class="ticker-badge" style="color:${color};border-color:${color}22;background:${color}11">${h.ticker}</span>
+          <span class="company-name">${h.name}</span>
+        </td>
+        <td>${h.shares % 1 === 0 ? h.shares : h.shares.toFixed(3)}</td>
+        <td>$${h.avgCost.toFixed(2)}</td>
+        <td style="font-family:'DM Mono',monospace">$${curr.toFixed(2)}${dayChange}</td>
+        <td>$${mktVal.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+        <td class="${cls}">${pnl >= 0 ? '+' : ''}$${Math.abs(pnl).toFixed(2)} (${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%)</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function renderOrders() {
+  const list = document.getElementById('ordersList');
+  const countEl = document.getElementById('ordersCountEl');
+  countEl.textContent = `${orders.length} total`;
+
+  if (orders.length === 0) {
+    list.innerHTML = `<div class="empty-state"><div class="icon">📋</div><p>No orders yet.</p></div>`;
+    return;
+  }
+
+  list.innerHTML = [...orders].reverse().map(o => `
+    <div class="order-item">
+      <span class="order-side ${o.type}">${o.type.toUpperCase()}</span>
+      <div class="order-info">
+        <div class="order-ticker">${o.ticker} <span style="color:var(--muted);font-weight:400;font-size:12px">${o.name}</span></div>
+        <div class="order-detail">${o.shares} shares @ $${o.price.toFixed(2)}</div>
+      </div>
+      <div style="text-align:right">
+        <div class="order-total">$${(o.shares * o.price).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
+        <div class="order-date">${o.date}</div>
+      </div>
+      <button class="delete-btn" onclick="deleteOrder(${o.id})" title="Delete">×</button>
+    </div>
+  `).join('');
+}
+
+function deleteOrder(id) {
+  orders = orders.filter(o => o.id !== id);
+  saveOrders();
+  render();
+  showToast('Order removed', '');
+}
+
+function renderAllocation() {
+  const holdings = computeHoldings();
+  const container = document.getElementById('allocList');
+  const cash = getCashBalance();
+  const vals = holdings.map(h => ({ ticker: h.ticker, val: getCurrentPrice(h.ticker, h.avgCost) * h.shares }));
+  if (cash > 0) vals.push({ ticker: 'CASH', val: cash });
+  const total = vals.reduce((a, v) => a + v.val, 0);
+
+  if (vals.length === 0 || total === 0) {
+    container.innerHTML = `<div class="empty-state"><p>No holdings or cash yet</p></div>`;
+    return;
+  }
+
+  container.innerHTML = vals.map((v, i) => {
+    const pct = (v.val / total) * 100;
+    const color = v.ticker === 'CASH' ? '#8892a0' : COLORS[i % COLORS.length];
+    return `
+      <div class="alloc-item">
+        <div class="alloc-row">
+          <span style="font-weight:600;font-size:14px">${v.ticker}</span>
+          <span class="alloc-pct">${pct.toFixed(1)}%</span>
+        </div>
+        <div class="alloc-bar">
+          <div class="alloc-fill" style="width:${pct}%;background:${color}"></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ── COMPARISON CHART ─────────────────────────────────────────
+
+const COMP_COLORS = ['#0066ff','#f5a623','#a78bfa','#38bdf8','#fb923c','#ff6b6b','#34d399','#e879f9'];
+
+function addComparison() {
+  const sel = document.getElementById('comparisonSelect');
+  let ticker = sel.value;
+  if (!ticker) return;
+  if (ticker === 'custom') {
+    ticker = prompt('Enter ticker symbol (e.g. TSLA, AMZN):');
+    if (!ticker) return;
+    ticker = ticker.trim().toUpperCase();
+  }
+  ticker = ticker.toUpperCase();
+  if (!comparisonTickers.includes(ticker)) {
+    comparisonTickers.push(ticker);
+  }
+  sel.value = '';
+  renderComparisonTags();
+  renderComparisonChart();
+}
+
+function removeComparison(ticker) {
+  comparisonTickers = comparisonTickers.filter(t => t !== ticker);
+  renderComparisonTags();
+  renderComparisonChart();
+}
+
+function renderComparisonTags() {
+  const container = document.getElementById('comparisonTags');
+  container.innerHTML = comparisonTickers.map((t, i) => {
+    const color = COMP_COLORS[i % COMP_COLORS.length];
+    return `<span style="display:inline-flex;align-items:center;gap:5px;background:${color}18;border:1px solid ${color}44;border-radius:5px;padding:3px 10px;font-family:'DM Mono',monospace;font-size:12px;color:${color}">
+      ${t}
+      <button onclick="removeComparison('${t}')" style="background:none;border:none;color:${color};cursor:pointer;font-size:14px;line-height:1;padding:0;opacity:0.7" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.7">×</button>
+    </span>`;
+  }).join('');
+}
+
+async function fetchHistorical(ticker, fromTimestamp) {
+  // Round fromTimestamp down to nearest week to improve cache hits
+  const weekAligned = fromTimestamp - (fromTimestamp % (7 * 86400));
+  const cacheKey = ticker + '_' + weekAligned;
+  if (historicalCache[cacheKey]) return historicalCache[cacheKey];
+
+  const toTs = Math.floor(Date.now() / 1000);
+  const fromDt = new Date(weekAligned * 1000);
+  const period1 = weekAligned;
+  const period2 = toTs;
+
+  // Use Yahoo Finance chart API via corsproxy.io — works for historical data
+  const yahooUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?period1=${period1}&period2=${period2}&interval=1wk&includePrePost=false`;
+  const proxiedUrl = `https://corsproxy.io/?url=${encodeURIComponent(yahooUrl)}`;
+
+  try {
+    const res = await fetch(proxiedUrl);
+    if (!res.ok) throw new Error('proxy failed');
+    const data = await res.json();
+    const result = data?.chart?.result?.[0];
+    const timestamps = result?.timestamp;
+    const closes = result?.indicators?.quote?.[0]?.close;
+    if (!timestamps || !closes) return null;
+    const series = timestamps.map((t, i) => ({ t, c: closes[i] })).filter(p => p.c != null);
+    historicalCache[cacheKey] = series;
+    return series;
+  } catch (e) {
+    console.warn('Historical fetch failed for', ticker, e);
+    return null;
+  }
+}
+
+// Generate weekly date labels between two dates
+function weeklyDates(fromDate, toDate) {
+  const dates = [];
+  const cur = new Date(fromDate);
+  // Advance to nearest Monday
+  cur.setDate(cur.getDate() + ((1 - cur.getDay() + 7) % 7));
+  while (cur <= toDate) {
+    dates.push(cur.toISOString().split('T')[0]);
+    cur.setDate(cur.getDate() + 7);
+  }
+  if (dates.length === 0) dates.push(fromDate.toISOString().split('T')[0]);
+  return dates;
+}
+
+// ── TIME-WEIGHTED RETURN ENGINE ───────────────────────────────
+//
+// TWR isolates investment skill from cash flow timing.
+// Algorithm:
+//   1. Build weekly portfolio value snapshots using historical stock prices
+//      (stocks only — cash tracked separately so it doesn't inflate returns)
+//   2. Identify cash flow events (deposits/withdrawals) within the range
+//   3. Between each pair of cash flow dates = one sub-period
+//      sub-period return = (end_value_before_flow / start_value_after_prev_flow) - 1
+//   4. Chain sub-period returns: TWR = (1+R1)×(1+R2)×...×(1+Rn) - 1
+//   5. At each weekly label, compute cumulative TWR up to that point
+//      so the chart shows how $1 grew over time (cash-flow-neutral)
+
+async function buildWeeklyPortfolioValues(weekLabels, fromTs) {
+  // Fetch historical prices for all tickers ever held
+  const allTickers = [...new Set(orders.map(o => o.ticker))];
+  const histMap = {};
+  await Promise.all(allTickers.map(async t => {
+    const h = await fetchHistorical(t, fromTs);
+    if (h) histMap[t] = h;
+  }));
+
+  // Get closest historical price for a ticker at a given date label
+  function priceAt(ticker, label, fallbackAvgCost) {
+    const hist = histMap[ticker];
+    if (!hist || !hist.length) return getCurrentPrice(ticker, fallbackAvgCost);
+    const ts = new Date(label).getTime() / 1000;
+    let best = null, bestDiff = Infinity;
+    for (const p of hist) {
+      const d = Math.abs(p.t - ts);
+      if (d < bestDiff) { bestDiff = d; best = p; }
+    }
+    // Accept if within 6 days (handles weekends/holidays)
+    return (best && bestDiff < 6 * 86400) ? best.c : getCurrentPrice(ticker, fallbackAvgCost);
+  }
+
+  // Replay stock orders to track share state at each week
+  const allSorted = [...orders].sort((a, b) => a.date.localeCompare(b.date));
+  // applyOrder: adjusts shares/price by split factor as of the order's date
+  // so the running share count is always in "current" (post-all-splits) units.
+  function applyOrder(o, st) {
+    const splits = splitCache[o.ticker] || [];
+    const factor = cumulativeSplitFactor(splits, o.date);
+    const adjShares = o.shares * factor;
+    const adjPrice  = o.price  / factor;
+    if (!st[o.ticker]) st[o.ticker] = { shares: 0, totalCost: 0 };
+    const h = st[o.ticker];
+    if (o.type === 'buy') {
+      h.totalCost += adjShares * adjPrice;
+      h.shares    += adjShares;
+    } else {
+      const avg = h.shares > 0 ? h.totalCost / h.shares : 0;
+      h.totalCost -= avg * adjShares;
+      h.shares    -= adjShares;
+    }
+  }
+
+  const fromDateStr = weekLabels[0];
+  const state = {};
+  allSorted.filter(o => o.date < fromDateStr).forEach(o => applyOrder(o, state));
+
+  let orderIdx = 0;
+  const inRangeOrders = allSorted.filter(o => o.date >= fromDateStr);
+
+  return weekLabels.map(label => {
+    while (orderIdx < inRangeOrders.length && inRangeOrders[orderIdx].date <= label) {
+      applyOrder(inRangeOrders[orderIdx], state);
+      orderIdx++;
+    }
+    let stockVal = 0;
+    Object.entries(state).forEach(([t, s]) => {
+      if (s.shares > 0.0001) stockVal += priceAt(t, label, s.totalCost / s.shares) * s.shares;
+    });
+    return { date: label, stockVal };
+  });
+}
+
+function computeTWR(weeklyValues, cashFlows, fromDateStr, toDateStr) {
+  // Cash flow events within range: deposit/withdraw events that break sub-periods
+  const flows = cashFlows
+    .filter(e => e.date >= fromDateStr && e.date <= toDateStr)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  // Build cash balance at each weekly point (needed to compute total portfolio value)
+  let cashRunning = 0;
+  // Start with cash balance just before the range
+  cashFlows
+    .filter(e => e.date < fromDateStr)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .forEach(e => { cashRunning += e.type === 'deposit' ? e.amount : -e.amount; });
+
+  // Map of date -> cumulative cash flow amount at that point
+  // We'll compute cash at each label by walking through flows
+  const cashFlowDates = new Set(flows.map(f => f.date));
+
+  // For each weekly label, compute total portfolio value (stocks + cash)
+  // and track whether it's a cash-flow date
+  const cashByLabel = {};
+  let cashSoFar = cashRunning;
+  let flowIdx = 0;
+  weeklyValues.forEach(({ date }) => {
+    // Apply any cash flows on/before this label
+    while (flowIdx < flows.length && flows[flowIdx].date <= date) {
+      cashSoFar += flows[flowIdx].type === 'deposit' ? flows[flowIdx].amount : -flows[flowIdx].amount;
+      flowIdx++;
+    }
+    cashByLabel[date] = cashSoFar;
+  });
+
+  // Now compute TWR sub-periods
+  // A sub-period starts after a cash flow event (or at the beginning)
+  // and ends just before the next cash flow event (or at the end)
+  //
+  // For each sub-period [start..end]:
+  //   start_value = total portfolio value AFTER the cash flow at start date
+  //   end_value   = total portfolio value BEFORE any cash flow at end date
+  //   R = end_value / start_value - 1
+
+  // Build total value at each label
+  const totalByLabel = {};
+  weeklyValues.forEach(({ date, stockVal }) => {
+    totalByLabel[date] = stockVal + (cashByLabel[date] ?? 0);
+  });
+
+  // Identify sub-period breakpoints: dates of cash flows within range
+  // Sub-periods: [rangeStart, flow1), [flow1, flow2), ..., [flowN, rangeEnd]
+  const breakpoints = [fromDateStr, ...flows.map(f => f.date), toDateStr];
+
+  // For charting: compute cumulative TWR at every weekly label
+  // We chain sub-period returns up to each label date
+  const labels = weeklyValues.map(v => v.date);
+  const twrByLabel = {};
+
+  let cumulativeFactor = 1.0; // (1+R1)*(1+R2)*... so far
+  let segmentStartLabel = null; // the label just after the last cash flow
+  let segmentStartValue = null; // portfolio value at segment start
+
+  // Find the first label with a non-zero portfolio value — that's our anchor
+  for (const { date, stockVal } of weeklyValues) {
+    const total = totalByLabel[date];
+    if (total > 0) {
+      segmentStartLabel = date;
+      segmentStartValue = total;
+      twrByLabel[date] = 0; // 0% at start
+      break;
+    }
+    twrByLabel[date] = 0;
+  }
+  if (segmentStartLabel === null) return labels.map(l => ({ date: l, twr: 0 }));
+
+  let pendingFlows = [...flows]; // flows not yet processed
+  let inSegmentStarted = false;
+
+  for (const { date, stockVal } of weeklyValues) {
+    if (date < segmentStartLabel) { twrByLabel[date] = 0; continue; }
+    if (date === segmentStartLabel) { twrByLabel[date] = 0; continue; }
+
+    const total = totalByLabel[date];
+
+    // Check if a cash flow occurred on this date
+    const flowsOnDate = pendingFlows.filter(f => f.date === date);
+    if (flowsOnDate.length > 0) {
+      // End the current sub-period just BEFORE this flow
+      // segment return = (value_before_flow / segmentStartValue) - 1
+      // value_before_flow = stockVal + cash BEFORE adding today's flows
+      const cashBeforeFlow = (cashByLabel[date] ?? 0) - flowsOnDate.reduce((a, f) => a + (f.type === 'deposit' ? f.amount : -f.amount), 0);
+      const valueBeforeFlow = stockVal + cashBeforeFlow;
+      if (segmentStartValue > 0) {
+        const segReturn = valueBeforeFlow / segmentStartValue - 1;
+        cumulativeFactor *= (1 + segReturn);
+      }
+      twrByLabel[date] = parseFloat(((cumulativeFactor - 1) * 100).toFixed(4));
+      // Start new segment AFTER the cash flow
+      segmentStartValue = total; // value after flow
+      pendingFlows = pendingFlows.filter(f => f.date !== date);
+    } else {
+      // Mid-segment: cumulative TWR = cumulativeFactor * (current / segStart) - 1
+      const inSegReturn = segmentStartValue > 0 ? total / segmentStartValue - 1 : 0;
+      twrByLabel[date] = parseFloat(((cumulativeFactor * (1 + inSegReturn) - 1) * 100).toFixed(4));
+    }
+  }
+
+  return labels.map(l => ({ date: l, twr: twrByLabel[l] ?? 0 }));
+}
+
+async function renderComparisonChart() {
+  if (orders.length === 0) return;
+
+  const loadEl = document.getElementById('compLoadingEl');
+  loadEl.style.display = 'flex';
+
+  const rangeVal = document.getElementById('compRangeSelect').value;
+  const now = new Date();
+  let fromDate;
+  if (rangeVal === '1m') fromDate = new Date(now - 30*24*3600*1000);
+  else if (rangeVal === '3m') fromDate = new Date(now - 90*24*3600*1000);
+  else if (rangeVal === '6m') fromDate = new Date(now - 180*24*3600*1000);
+  else if (rangeVal === '1y') fromDate = new Date(now - 365*24*3600*1000);
+  else {
+    // All time: start from first cash flow OR first order, whichever is earlier
+    const firstOrder = [...orders].sort((a,b) => a.date.localeCompare(b.date))[0]?.date;
+    const firstCash  = [...cashEntries].sort((a,b) => a.date.localeCompare(b.date))[0]?.date;
+    const earliest = [firstOrder, firstCash].filter(Boolean).sort()[0];
+    fromDate = earliest ? new Date(earliest) : new Date(now - 365*24*3600*1000);
+  }
+
+  const fromTs = Math.floor(fromDate.getTime() / 1000);
+  const fromDateStr = fromDate.toISOString().split('T')[0];
+  const toDateStr   = now.toISOString().split('T')[0];
+  const weekLabels  = weeklyDates(fromDate, now);
+
+  // ── Step 1: Build weekly stock values (historical prices × shares held each week)
+  const weeklyValues = await buildWeeklyPortfolioValues(weekLabels, fromTs);
+
+  // ── Step 2: Compute TWR — cash flows break the period into sub-segments,
+  //    each segment's return is chained multiplicatively so deposits/withdrawals
+  //    don't distort the performance line
+  const twrSeries = computeTWR(weeklyValues, cashEntries, fromDateStr, toDateStr);
+
+  const datasets = [{
+    label: 'My Portfolio (TWR)',
+    data: twrSeries.map(p => ({ x: p.date, y: p.twr })),
+    borderColor: '#00e5a0',
+    backgroundColor: 'rgba(0,229,160,0.06)',
+    fill: true,
+    tension: 0.4,
+    pointRadius: 2,
+    pointBackgroundColor: '#00e5a0',
+    borderWidth: 2.5,
+  }];
+
+  // ── Step 3: Benchmark series — simple cumulative % return from start price
+  //    (no cash flows, so simple normalization is correct for benchmarks)
+  function normalizeBench(hist) {
+    if (!hist || !hist.length) return [];
+    const mapped = weekLabels.map(label => {
+      const ts = new Date(label).getTime() / 1000;
+      let best = null, bestDiff = Infinity;
+      for (const p of hist) {
+        const d = Math.abs(p.t - ts);
+        if (d < bestDiff) { bestDiff = d; best = p; }
+      }
+      return best ? best.c : null;
+    });
+    // Forward-fill
+    let last = null;
+    const filled = mapped.map(v => { if (v != null) last = v; return last; });
+    const base = filled.find(v => v != null) ?? 1;
+    return filled.map(v => v != null ? parseFloat((((v - base) / base) * 100).toFixed(4)) : 0);
+  }
+
+  for (let i = 0; i < comparisonTickers.length; i++) {
+    const ticker = comparisonTickers[i];
+    const color = COMP_COLORS[i % COMP_COLORS.length];
+    const hist = await fetchHistorical(ticker, fromTs);
+    if (hist && hist.length > 0) {
+      const benchNorm = normalizeBench(hist);
+      datasets.push({
+        label: ticker,
+        data: weekLabels.map((d, j) => ({ x: d, y: benchNorm[j] ?? 0 })),
+        borderColor: color,
+        backgroundColor: 'transparent',
+        fill: false,
+        tension: 0.4,
+        pointRadius: 1,
+        pointBackgroundColor: color,
+        borderWidth: 2,
+        borderDash: [5, 3],
+      });
+    } else {
+      showToast(`⚠️ No data for ${ticker} — try a different symbol`, 'loss-toast');
+    }
+  }
+
+  loadEl.style.display = 'none';
+
+  if (comparisonChart) comparisonChart.destroy();
+  const ctx = document.getElementById('comparisonChart').getContext('2d');
+  comparisonChart = new Chart(ctx, {
+    type: 'line',
+    data: { datasets },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          display: true,
+          labels: { color: '#e8eaf0', font: { family: 'DM Mono', size: 12 }, padding: 16, usePointStyle: true }
+        },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y >= 0 ? '+' : ''}${ctx.parsed.y.toFixed(2)}%`
+          }
+        }
+      },
+      scales: {
+        x: {
+          type: 'category',
+          ticks: { color: '#5a6070', font: { family: 'DM Mono', size: 10 }, maxTicksLimit: 10, maxRotation: 0 },
+          grid: { color: '#1c2028' }
+        },
+        y: {
+          ticks: {
+            color: '#5a6070',
+            font: { family: 'DM Mono', size: 11 },
+            callback: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%'
+          },
+          grid: { color: '#1c2028' }
+        }
+      }
+    }
+  });
+}
+
+async function renderCharts() {
+  const holdings = computeHoldings();
+
+  // Portfolio Value Over Time — uses same historical price engine as comparison chart
+  // so both charts are consistent. Shows total value (stocks at historical prices + cash).
+  const now_vc = new Date();
+  const firstOrder = [...orders].sort((a,b) => a.date.localeCompare(b.date))[0]?.date;
+  const firstCash  = [...cashEntries].sort((a,b) => a.date.localeCompare(b.date))[0]?.date;
+  const earliest = [firstOrder, firstCash].filter(Boolean).sort()[0];
+  const vcFromDate = earliest ? new Date(earliest) : new Date(now_vc - 365*24*3600*1000);
+  const vcFromTs = Math.floor(vcFromDate.getTime() / 1000);
+  const vcFromStr = vcFromDate.toISOString().split('T')[0];
+  const vcWeekLabels = weeklyDates(vcFromDate, now_vc);
+
+  // Build stock values per week using historical prices
+  const vcWeeklyStockVals = await buildWeeklyPortfolioValues(vcWeekLabels, vcFromTs);
+
+  // Add cash balance at each week label
+  const vcCashSorted = [...cashEntries].sort((a,b) => a.date.localeCompare(b.date));
+  let vcCashRunning = 0;
+  let vcCashIdx = 0;
+  const vcTotalValues = vcWeeklyStockVals.map(({ date, stockVal }) => {
+    while (vcCashIdx < vcCashSorted.length && vcCashSorted[vcCashIdx].date <= date) {
+      vcCashRunning += vcCashSorted[vcCashIdx].type === 'deposit' ? vcCashSorted[vcCashIdx].amount : -vcCashSorted[vcCashIdx].amount;
+      vcCashIdx++;
+    }
+    return { date, value: stockVal + Math.max(0, vcCashRunning) };
+  });
+
+  // Also build the cash-only line for the same week labels
+  const vcCashSorted2 = [...cashEntries].sort((a,b) => a.date.localeCompare(b.date));
+  let vcCashRunning2 = 0, vcCashIdx2 = 0;
+  const vcCashLine = vcWeekLabels.map(label => {
+    while (vcCashIdx2 < vcCashSorted2.length && vcCashSorted2[vcCashIdx2].date <= label) {
+      vcCashRunning2 += vcCashSorted2[vcCashIdx2].type === 'deposit' ? vcCashSorted2[vcCashIdx2].amount : -vcCashSorted2[vcCashIdx2].amount;
+      vcCashIdx2++;
+    }
+    return Math.max(0, vcCashRunning2);
+  });
+
+  if (valueChart) valueChart.destroy();
+  const ctx1 = document.getElementById('valueChart').getContext('2d');
+  valueChart = new Chart(ctx1, {
+    type: 'line',
+    data: {
+      labels: vcWeekLabels,
+      datasets: [
+        {
+          label: 'Total Portfolio',
+          data: vcTotalValues.map(p => p.value),
+          borderColor: '#00e5a0',
+          backgroundColor: 'rgba(0,229,160,0.06)',
+          fill: true,
+          tension: 0.4,
+          pointRadius: 2,
+          pointBackgroundColor: '#00e5a0',
+          borderWidth: 2.5,
+          order: 1,
+        },
+        {
+          label: 'Cash Available',
+          data: vcCashLine,
+          borderColor: '#8892a0',
+          backgroundColor: 'rgba(136,146,160,0.06)',
+          fill: true,
+          tension: 0.3,
+          pointRadius: 1,
+          pointBackgroundColor: '#8892a0',
+          borderWidth: 1.5,
+          borderDash: [4, 3],
+          order: 2,
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          display: true,
+          labels: { color: '#e8eaf0', font: { family: 'DM Mono', size: 12 }, padding: 16, usePointStyle: true }
+        },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.dataset.label}: $${ctx.parsed.y.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}`
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { color: '#5a6070', font: { family: 'DM Mono', size: 11 }, maxTicksLimit: 10 }, grid: { color: '#242830' } },
+        y: { ticks: { color: '#5a6070', font: { family: 'DM Mono', size: 11 }, callback: v => '$' + v.toLocaleString() }, grid: { color: '#242830' } }
+      }
+    }
+  });
+
+  // Pie chart — includes cash as a slice
+  if (pieChart) pieChart.destroy();
+  const ctx2 = document.getElementById('pieChart').getContext('2d');
+  const pieLabels = [...holdings.map(h => h.ticker)];
+  const pieVals   = [...holdings.map(h => getCurrentPrice(h.ticker, h.avgCost) * h.shares)];
+  const pieCash = getCashBalance();
+  if (pieCash > 0) { pieLabels.push('CASH'); pieVals.push(pieCash); }
+  const pieColors = [...COLORS.slice(0, holdings.length), '#8892a0'];
+  pieChart = new Chart(ctx2, {
+    type: 'doughnut',
+    data: {
+      labels: pieLabels,
+      datasets: [{ data: pieVals, backgroundColor: pieColors.slice(0, pieLabels.length), borderWidth: 2, borderColor: '#111418' }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'right', labels: { color: '#e8eaf0', font: { family: 'DM Mono', size: 12 }, padding: 12 } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: $${ctx.parsed.toLocaleString('en-US', {minimumFractionDigits:2})} (${((ctx.parsed / ctx.dataset.data.reduce((a,b)=>a+b,0))*100).toFixed(1)}%)` } }
+      }
+    }
+  });
+
+  // P&L bar chart
+  if (plChart) plChart.destroy();
+  const ctx3 = document.getElementById('plChart').getContext('2d');
+  const plVals = holdings.map(h => (getCurrentPrice(h.ticker, h.avgCost) - h.avgCost) * h.shares);
+  plChart = new Chart(ctx3, {
+    type: 'bar',
+    data: {
+      labels: holdings.map(h => h.ticker),
+      datasets: [{
+        label: 'P&L',
+        data: plVals,
+        backgroundColor: plVals.map(v => v >= 0 ? 'rgba(0,229,160,0.7)' : 'rgba(255,69,96,0.7)'),
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#5a6070', font: { family: 'DM Mono', size: 12 } }, grid: { color: '#242830' } },
+        y: { ticks: { color: '#5a6070', font: { family: 'DM Mono', size: 11 }, callback: v => '$' + v.toLocaleString() }, grid: { color: '#242830' } }
+      }
+    }
+  });
+}
+
+// ── TABS ─────────────────────────────────────────────────────
+function switchTab(name, el) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(`panel-${name}`).classList.add('active');
+  el.classList.add('active');
+  if (name === 'charts') { renderCharts(); renderComparisonTags(); renderComparisonChart(); }
+  if (name === 'cash') { renderCashTab(); }
+}
+
+// ── TOAST ─────────────────────────────────────────────────────
+function showToast(msg, cls) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${cls} show`;
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ── SEED DATA ────────────────────────────────────────────────
+function loadSeedData() {
+  orders = [
+    { id: 1, type:'buy', ticker:'AAPL', name:'Apple Inc.',      shares:10, price:172.50, date:'2024-08-15' },
+    { id: 2, type:'buy', ticker:'MSFT', name:'Microsoft Corp.', shares:5,  price:415.00, date:'2024-09-03' },
+    { id: 3, type:'buy', ticker:'NVDA', name:'NVIDIA Corp.',     shares:8,  price:490.00, date:'2024-10-10' },
+    { id: 4, type:'buy', ticker:'GOOGL',name:'Alphabet Inc.',   shares:12, price:175.00, date:'2024-11-01' },
+    { id: 5, type:'sell',ticker:'AAPL', name:'Apple Inc.',      shares:3,  price:185.00, date:'2025-01-20' },
+  ];
+  cashEntries = [
+    { id: 100, type:'deposit',  amount:20000,   date:'2024-01-01', note:'Initial deposit' },
+    { id: 101, type:'withdraw', amount:1725.00,  date:'2024-08-15', note:'Buy 10 AAPL @ $172.50' },
+    { id: 102, type:'withdraw', amount:2075.00,  date:'2024-09-03', note:'Buy 5 MSFT @ $415.00' },
+    { id: 103, type:'withdraw', amount:3920.00,  date:'2024-10-10', note:'Buy 8 NVDA @ $490.00' },
+    { id: 104, type:'withdraw', amount:2100.00,  date:'2024-11-01', note:'Buy 12 GOOGL @ $175.00' },
+    { id: 105, type:'deposit',  amount:555.00,   date:'2025-01-20', note:'Sell 3 AAPL @ $185.00' },
+  ];
+  saveOrders();
+  saveCash();
+}
+
+async function resetToDemo() {
+  if (!confirm('Reset all data to demo portfolio? This will erase your current data.')) return;
+  orders = [];
+  cashEntries = [];
+  loadSeedData();
+  await saveAll();
+  render();
+  showToast('✓ Demo data loaded', 'gain-toast');
+}
+
+// ── INIT ──────────────────────────────────────────────────────
+// Show loading overlay while Firestore loads
+function showLoadingOverlay(msg) {
+  let el = document.getElementById('firestoreLoader');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'firestoreLoader';
+    el.style.cssText = "position:fixed;inset:0;z-index:9999;background:#0a0c0f;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;font-family:'Syne',sans-serif";
+    el.innerHTML = `<div style="font-size:28px;font-weight:800;color:#00e5a0;letter-spacing:-0.03em">STOCKPILE</div><div id="firestoreLoaderMsg" style="font-family:'DM Mono',monospace;font-size:13px;color:#5a6070">${msg}</div>`;
+    document.body.appendChild(el);
+  } else {
+    document.getElementById('firestoreLoaderMsg').textContent = msg;
+  }
+}
+function hideLoadingOverlay() {
+  const el = document.getElementById('firestoreLoader');
+  if (el) { el.style.opacity = '0'; el.style.transition = 'opacity 0.4s'; setTimeout(() => el.remove(), 400); }
+}
+
+async function loadFromFirestore() {
+  showLoadingOverlay('Connecting to database...');
+  try {
+    const data = await window._db.load();
+    if (data) {
+      orders      = data.orders      || [];
+      cashEntries = data.cashEntries || [];
+    }
+    // If no data at all in Firestore, seed with demo data and save it
+    if (orders.length === 0 && cashEntries.length === 0) {
+      showLoadingOverlay('First launch — loading demo data...');
+      loadSeedData();
+      await saveAll();
+    }
+  } catch (e) {
+    console.error('Firestore load failed:', e);
+    showLoadingOverlay('⚠️ Could not connect — using local data');
+    // Fallback: use whatever is in memory (empty → seed)
+    if (orders.length === 0 && cashEntries.length === 0) loadSeedData();
+    await new Promise(r => setTimeout(r, 1500));
+  }
+  hideLoadingOverlay();
+  await fetchAllSplits();
+  render();
+  refreshPrices();
+}
+
+// Wait for Firebase module to signal ready, then load data
+function waitForFirebase() {
+  if (window._firebaseReady) {
+    loadFromFirestore();
+  } else {
+    showLoadingOverlay('Loading...');
+    document.addEventListener('firebase-ready', () => loadFromFirestore(), { once: true });
+    // Safety timeout — if Firebase doesn't load in 5s, run offline
+    setTimeout(() => {
+      if (!window._firebaseReady) {
+        console.warn('Firebase timeout — running offline');
+        hideLoadingOverlay();
+        if (orders.length === 0 && cashEntries.length === 0) loadSeedData();
+        fetchAllSplits().then(() => { render(); refreshPrices(); });
+      }
+    }, 5000);
+  }
+}
+
+waitForFirebase();
+setInterval(refreshPrices, CACHE_TTL_MS);
+
+</script>
+</body>
+</html>
